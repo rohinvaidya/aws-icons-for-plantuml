@@ -1,7 +1,7 @@
 # PlantUML Diagram Fixes Applied
 
 ## Summary
-Fixed PlantUML deployment, infrastructure, network, and security architecture diagrams to use the correct AWS icon paths and macro names from this repository (aws-icons-for-plantuml v20.0).
+Fixed all PlantUML architecture diagrams (deployment, infrastructure, network, security, and service interaction) to use the correct AWS icon paths and macro names from this repository (aws-icons-for-plantuml v20.0).
 
 ## Changes Made
 
@@ -255,13 +255,44 @@ IdentityAccessManagementRole(sa_karpenter, "karpenter ServiceAccount", "EC2 Mana
 
 **Reason:** Updated all IAM role references to use the correct macro name.
 
+## Service Interaction Sequence Diagram Specific Fixes
+
+### 13. AWS Icon Participants (Sequence Diagram)
+**Added:**
+```plantuml
+!include AWSPuml/General/User.puml
+!include AWSPuml/NetworkingContentDelivery/ElasticLoadBalancingApplicationLoadBalancer.puml
+!include AWSPuml/Database/RDS.puml
+!include AWSPuml/BusinessApplications/SimpleEmailService.puml
+```
+
+**Participant Macros:**
+```plantuml
+UserParticipant(user, "User", "")
+ElasticLoadBalancingApplicationLoadBalancerParticipant(alb, "ALB", "")
+RDSParticipant(db, "PostgreSQL", "RDS")
+SimpleEmailServiceParticipant(ses, "AWS SES", "")
+```
+
+**Reason:** Enhanced sequence diagram with AWS PlantUML participant macros for better visual consistency with AWS architecture. This provides proper AWS service icons in the sequence diagram.
+
+### AWS Sequence Diagram Participants Available
+
+For sequence diagrams, AWS icons provide `*Participant` macros:
+- `UserParticipant` - For user actors ✓
+- `ElasticLoadBalancingApplicationLoadBalancerParticipant` - For ALB ✓
+- `RDSParticipant` - For databases ✓
+- `SimpleEmailServiceParticipant` - For AWS SES ✓
+- Any AWS service icon has a corresponding `*Participant` macro
+
 ## Files Created
 
 1. `deployment-architecture-fixed.puml` - The corrected deployment architecture diagram
 2. `infrastructure-architecture-fixed.puml` - The corrected infrastructure architecture diagram
 3. `network-architecture-fixed.puml` - The corrected network architecture diagram
 4. `security-architecture-fixed.puml` - The corrected security architecture diagram
-5. `FIXES_APPLIED.md` - This documentation file
+5. `service-interaction-fixed.puml` - The corrected service interaction sequence diagram
+6. `FIXES_APPLIED.md` - This documentation file
 
 ## Testing
 

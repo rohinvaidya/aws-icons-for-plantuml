@@ -1,0 +1,209 @@
+@startuml service-interaction
+!define AWSPuml https://raw.githubusercontent.com/awslabs/aws-icons-for-plantuml/v20.0/dist
+!include AWSPuml/AWSCommon.puml
+!include AWSPuml/General/User.puml
+!include AWSPuml/NetworkingContentDelivery/ElasticLoadBalancingApplicationLoadBalancer.puml
+!include AWSPuml/Compute/EC2.puml
+!include AWSPuml/Database/RDS.puml
+!include AWSPuml/BusinessApplications/SimpleEmailService.puml
+
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam maxmessagesize 120
+
+title Campus Events Management System - Service Interaction Flow
+
+UserParticipant(user, "User", "")
+participant "Frontend\n(React)" as frontend #90CAF9
+ElasticLoadBalancingApplicationLoadBalancerParticipant(alb, "ALB", "")
+participant "Events API\n(Node.js)" as api #66BB6A
+participant "Notification\nService\n(Python)" as notif #FFA726
+RDSParticipant(db, "PostgreSQL", "RDS")
+SimpleEmailServiceParticipant(ses, "AWS SES", "")
+participant "Prometheus" as prometheus #E57373
+
+== Event Creation Flow ==
+
+user -> frontend : 1. Create Event\n(Fill form & submit)
+activate frontend
+
+frontend -> frontend : 2. Validate input\n(Client-side)
+frontend -> alb : 3. POST /api/events\n(with JWT token)
+activate alb
+
+alb -> api : 4. Route to Events API\n(path-based routing)
+activate api
+
+api -> api : 5. Validate JWT token
+api -> api : 6. Validate request body\n(Joi schema)
+
+api -> db : 7. INSERT INTO events\n(parameterized query)
+activate db
+db --> api : 8. Return event_id
+deactivate db
+
+api -> notif : 9. POST /notifications/email\n(Event Created notification)
+activate notif
+
+notif -> notif : 10. Validate request\n(Pydantic model)
+notif -> notif : 11. Render email template\n(Jinja2)
+
+notif -> ses : 12. Send email via SES
+activate ses
+ses --> notif : 13. Message ID
+deactivate ses
+
+notif --> api : 14. Notification sent
+deactivate notif
+
+api --> alb : 15. 201 Created\n(with event details)
+deactivate api
+alb --> frontend : 16. Event created response
+deactivate alb
+
+frontend -> frontend : 17. Update UI\n(show success message)
+frontend --> user : 18. Event created successfully
+deactivate frontend
+
+== RSVP Creation Flow ==
+
+user -> frontend : 19. RSVP to Event\n(Click RSVP button)
+activate frontend
+
+frontend -> alb : 20. POST /api/events/:id/rsvp\n(with JWT token)
+activate alb
+alb -> api : 21. Route to Events API
+activate api
+
+api -> api : 22. Validate JWT token
+api -> api : 23. Check event capacity
+
+api -> db : 24. Check existing RSVP
+activate db
+db --> api : 25. No duplicate found
+deactivate db
+
+api -> db : 26. INSERT INTO rsvps
+activate db
+db --> api : 27. RSVP created
+deactivate db
+
+api -> notif : 28. POST /notifications/email\n(RSVP Confirmation)
+activate notif
+notif -> ses : 29. Send confirmation email
+activate ses
+ses --> notif : 30. Email sent
+deactivate ses
+notif --> api : 31. Notification sent
+deactivate notif
+
+api --> alb : 32. 201 Created
+deactivate api
+alb --> frontend : 33. RSVP confirmed
+deactivate alb
+
+frontend -> frontend : 34. Update UI
+frontend --> user : 35. RSVP confirmed
+deactivate frontend
+
+== Event Listing Flow ==
+
+user -> frontend : 36. Browse Events\n(Load events page)
+activate frontend
+
+frontend -> alb : 37. GET /api/events\n(optional filters)
+activate alb
+alb -> api : 38. Route to Events API
+activate api
+
+api -> db : 39. SELECT * FROM events\n(with filters)
+activate db
+db --> api : 40. Return event list
+deactivate db
+
+api --> alb : 41. 200 OK (events array)
+deactivate api
+alb --> frontend : 42. Events data
+deactivate alb
+
+frontend -> frontend : 43. Render event cards
+frontend --> user : 44. Display events
+deactivate frontend
+
+== Metrics Collection (Background) ==
+
+prometheus -> frontend : GET /metrics
+activate prometheus
+activate frontend
+frontend --> prometheus : Frontend metrics
+deactivate frontend
+
+prometheus -> api : GET /metrics
+activate api
+api --> prometheus : API metrics\n(requests, errors, latency)
+deactivate api
+
+prometheus -> notif : GET /metrics
+activate notif
+notif --> prometheus : Notification metrics
+deactivate notif
+deactivate prometheus
+
+== Health Check Flow (Background) ==
+
+alb -> frontend : GET /health (every 30s)
+activate frontend
+frontend --> alb : 200 OK
+deactivate frontend
+
+alb -> api : GET /health (every 30s)
+activate api
+api -> db : Test DB connection
+activate db
+db --> api : Connection OK
+deactivate db
+api --> alb : 200 OK
+deactivate api
+
+== Error Handling Example ==
+
+user -> frontend : 45. Submit invalid event
+activate frontend
+frontend -> alb : 46. POST /api/events\n(invalid data)
+activate alb
+alb -> api : 47. Route to Events API
+activate api
+
+api -> api : 48. Validate request\n(Joi schema fails)
+api --> alb : 49. 400 Bad Request\n(validation errors)
+deactivate api
+alb --> frontend : 50. Error response
+deactivate alb
+
+frontend -> frontend : 51. Parse errors
+frontend --> user : 52. Show validation errors
+deactivate frontend
+
+note over user, prometheus
+  **Key Patterns Demonstrated:**
+
+  ✓ Request/Response cycle
+  ✓ JWT authentication
+  ✓ Input validation (client + server)
+  ✓ Database transactions
+  ✓ Asynchronous notifications
+  ✓ Error handling
+  ✓ Health checks
+  ✓ Metrics collection
+  ✓ Load balancer routing
+
+  **Performance Targets:**
+  - API latency: <200ms (p95)
+  - Database queries: <100ms
+  - Email delivery: <2s
+  - Frontend load: <3s
+end note
+
+@enduml
