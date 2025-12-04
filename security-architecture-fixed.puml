@@ -1,0 +1,204 @@
+@startuml security-architecture
+!define AWSPuml https://raw.githubusercontent.com/awslabs/aws-icons-for-plantuml/v20.0/dist
+!include AWSPuml/AWSCommon.puml
+!include AWSPuml/SecurityIdentityCompliance/IdentityAccessManagementRole.puml
+!include AWSPuml/SecurityIdentityCompliance/SecretsManager.puml
+!include AWSPuml/SecurityIdentityCompliance/KeyManagementService.puml
+!include AWSPuml/SecurityIdentityCompliance/WAF.puml
+!include AWSPuml/ManagementGovernance/CloudTrail.puml
+!include AWSPuml/NetworkingContentDelivery/VPCVirtualprivatecloudVPC.puml
+
+skinparam backgroundColor #FEFEFE
+skinparam rectangleBorderColor #232F3E
+
+title Campus Events Management System - Security Architecture (Defense in Depth)
+
+' Define Security Layers
+rectangle "Security Layer 1: Perimeter" as layer1 #FFEBEE {
+  WAF(waf, "AWS WAF", "Optional DDoS Protection")
+
+  rectangle "Security Groups" as sg_layer {
+    card "ALB Security Group" as sg_alb
+    card "EKS Node SG" as sg_node
+    card "RDS Security Group" as sg_rds
+  }
+
+  rectangle "Network ACLs" as nacl {
+    card "Public Subnet NACL" as nacl_public
+    card "Private Subnet NACL" as nacl_private
+    card "Database Subnet NACL" as nacl_db
+  }
+}
+
+rectangle "Security Layer 2: Network" as layer2 #F3E5F5 {
+  VPCVirtualprivatecloudVPC(vpc, "VPC Isolation", "10.0.0.0/16 Private networking")
+
+  rectangle "Kubernetes Network Policies" as netpol {
+    card "Default Deny All" as netpol_deny
+    card "Frontend → API" as netpol_fe
+    card "API → Notifications" as netpol_api
+    card "API → Database" as netpol_db
+  }
+
+  card "VPC Flow Logs" as flow_logs
+}
+
+rectangle "Security Layer 3: Compute" as layer3 #E8F5E9 {
+  rectangle "IAM Roles for Service Accounts (IRSA)" as irsa {
+    IdentityAccessManagementRole(sa_events_api, "events-api ServiceAccount", "RDS + Secrets")
+    IdentityAccessManagementRole(sa_notif, "notification ServiceAccount", "SES + SNS")
+    IdentityAccessManagementRole(sa_karpenter, "karpenter ServiceAccount", "EC2 Management")
+  }
+
+  rectangle "Pod Security" as pod_security {
+    card "Non-root containers" as nonroot
+    card "Read-only root FS" as readonly
+    card "Drop capabilities" as drop_cap
+    card "Security Context" as sec_context
+  }
+
+  card "EKS Managed\nControl Plane" as eks_control
+}
+
+rectangle "Security Layer 4: Application" as layer4 #FFF3E0 {
+  rectangle "Input Validation" as validation {
+    card "Joi Schemas\n(Node.js)" as joi
+    card "Pydantic Models\n(Python)" as pydantic
+    card "SQL Injection\nPrevention" as sqli
+  }
+
+  rectangle "Authentication & Authorization" as auth {
+    card "JWT Tokens\n(24h expiry)" as jwt
+    card "Password Hashing\n(bcrypt)" as bcrypt
+    card "Rate Limiting\n(100/15min)" as ratelimit
+  }
+
+  rectangle "Security Headers" as headers {
+    card "Helmet.js" as helmet
+    card "CORS Policy" as cors
+    card "Content Security\nPolicy (CSP)" as csp
+  }
+}
+
+rectangle "Security Layer 5: Data" as layer5 #E1F5FE {
+  SecretsManager(secrets, "Secrets Manager", "Encrypted storage, Automatic rotation")
+  KeyManagementService(kms, "KMS Encryption", "At-rest encryption")
+
+  rectangle "RDS Security" as rds_security {
+    card "SSL/TLS Enforced" as ssl_rds
+    card "Multi-AZ Failover" as multi_az
+    card "Automated Backups\n(7 days)" as backups
+    card "Encryption at Rest" as encrypt_rest
+  }
+
+  rectangle "Container Images" as images {
+    card "ECR Image\nScanning" as ecr_scan
+    card "Trivy Security\nScanning" as trivy
+    card "Base Image\nUpdates" as base_update
+  }
+}
+
+rectangle "Security Layer 6: Monitoring & Response" as layer6 #FCE4EC {
+  CloudTrail(cloudtrail, "CloudTrail", "Audit logs, API tracking")
+
+  rectangle "Observability" as observability {
+    card "CloudWatch Logs" as cwlogs
+    card "Prometheus Metrics" as prometheus
+    card "Alertmanager" as alertmanager
+    card "Security Alerts" as sec_alerts
+  }
+}
+
+' Relationships between layers
+layer1 -down-> layer2 : "Traffic flows down\nthrough security layers"
+layer2 -down-> layer3
+layer3 -down-> layer4
+layer4 -down-> layer5
+layer5 -down-> layer6 : "All layers monitored"
+
+' Specific security flows
+waf --> sg_layer : "Filter malicious\ntraffic"
+sg_layer --> netpol : "Layer 4 filtering\n→ Layer 7 policies"
+irsa --> secrets : "Fetch credentials\n(no long-lived keys)"
+auth --> secrets : "Validate tokens\nagainst secrets"
+rds_security --> kms : "Encrypt data\nwith KMS keys"
+pod_security --> eks_control : "Managed by\nK8s RBAC"
+
+' Notes
+note right of waf
+  **Perimeter Defense**
+  - Block common attacks
+  - Rate limiting
+  - IP reputation filtering
+  - SQL injection detection
+end note
+
+note right of vpc
+  **Network Isolation**
+  - Private subnets for workloads
+  - No direct internet access
+  - NAT Gateway for outbound
+  - Flow logs for auditing
+end note
+
+note right of irsa
+  **Identity-Based Access**
+  - No long-lived credentials
+  - Automatic credential rotation
+  - Least privilege access
+  - AWS STS temporary tokens
+end note
+
+note right of validation
+  **Application Hardening**
+  - Never trust user input
+  - Parameterized queries
+  - Output encoding
+  - Error handling
+end note
+
+note right of secrets
+  **Secrets Management**
+  - Encrypted at rest (KMS)
+  - Automatic rotation
+  - Version tracking
+  - Audit trail
+  - IRSA-based access
+end note
+
+note right of cloudtrail
+  **Continuous Monitoring**
+  - All API calls logged
+  - Security alerts
+  - Anomaly detection
+  - Incident response
+  - Compliance reporting
+end note
+
+' Security Best Practices
+note bottom of layer6
+  **Security Best Practices Applied**
+  ✓ Defense in depth (multiple layers)
+  ✓ Least privilege access (IAM, RBAC)
+  ✓ Encryption everywhere (transit + rest)
+  ✓ Immutable infrastructure (IaC)
+  ✓ Automated security scanning
+  ✓ Continuous monitoring
+  ✓ Incident response ready
+  ✓ Audit trail maintained
+end note
+
+' Threat Mitigation
+legend right
+  |= Threat |= Mitigation |
+  | DDoS Attack | AWS Shield, WAF rate limiting |
+  | SQL Injection | Parameterized queries, input validation |
+  | XSS Attack | Input sanitization, CSP headers |
+  | Credential Theft | No long-lived creds, IRSA, rotation |
+  | MITM Attack | TLS/SSL everywhere, certificate pinning |
+  | Container Escape | Non-root, read-only FS, drop caps |
+  | Data Breach | KMS encryption, Multi-AZ, backups |
+  | Unauthorized Access | JWT auth, rate limiting, network policies |
+endlegend
+
+@enduml

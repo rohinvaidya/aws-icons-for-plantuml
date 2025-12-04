@@ -1,7 +1,7 @@
 # PlantUML Diagram Fixes Applied
 
 ## Summary
-Fixed PlantUML deployment, infrastructure, and network architecture diagrams to use the correct AWS icon paths and macro names from this repository (aws-icons-for-plantuml v20.0).
+Fixed PlantUML deployment, infrastructure, network, and security architecture diagrams to use the correct AWS icon paths and macro names from this repository (aws-icons-for-plantuml v20.0).
 
 ## Changes Made
 
@@ -210,12 +210,58 @@ All three diagrams now include:
 - `GitRepository.puml` - For GitHub and version control ✓
 - `Internet.puml` - For internet connectivity (network diagram) ✓
 
+## Security Architecture Diagram Specific Fixes
+
+### 10. IAM Role Include Path (Security Diagram)
+**Original:**
+```plantuml
+!include AWSPuml/SecurityIdentityCompliance/IAMRole.puml
+```
+
+**Fixed:**
+```plantuml
+!include AWSPuml/SecurityIdentityCompliance/IdentityAccessManagementRole.puml
+```
+
+**Reason:** Same as other diagrams - the correct file is `IdentityAccessManagementRole.puml`, not `IAMRole.puml`.
+
+### 11. VPC Icon Include Path (Security Diagram)
+**Original:**
+```plantuml
+!include AWSPuml/NetworkingContentDelivery/VirtualPrivateCloud.puml
+```
+
+**Fixed:**
+```plantuml
+!include AWSPuml/NetworkingContentDelivery/VPCVirtualprivatecloudVPC.puml
+```
+
+**Reason:** Consistent with infrastructure and network diagrams.
+
+### 12. IAM Role Macros (Security Diagram)
+**Original:**
+```plantuml
+IAMRole(sa_events_api, "events-api\nServiceAccount", "RDS + Secrets")
+IAMRole(sa_notif, "notification\nServiceAccount", "SES + SNS")
+IAMRole(sa_karpenter, "karpenter\nServiceAccount", "EC2 Management")
+```
+
+**Fixed:**
+```plantuml
+IdentityAccessManagementRole(sa_events_api, "events-api ServiceAccount", "RDS + Secrets")
+IdentityAccessManagementRole(sa_notif, "notification ServiceAccount", "SES + SNS")
+IdentityAccessManagementRole(sa_karpenter, "karpenter ServiceAccount", "EC2 Management")
+```
+
+**Reason:** Updated all IAM role references to use the correct macro name.
+
 ## Files Created
 
 1. `deployment-architecture-fixed.puml` - The corrected deployment architecture diagram
 2. `infrastructure-architecture-fixed.puml` - The corrected infrastructure architecture diagram
 3. `network-architecture-fixed.puml` - The corrected network architecture diagram
-4. `FIXES_APPLIED.md` - This documentation file
+4. `security-architecture-fixed.puml` - The corrected security architecture diagram
+5. `FIXES_APPLIED.md` - This documentation file
 
 ## Testing
 
