@@ -1,7 +1,7 @@
 # PlantUML Diagram Fixes Applied
 
 ## Summary
-Fixed the PlantUML deployment architecture diagram to use the correct AWS icon paths and macro names from this repository (aws-icons-for-plantuml v20.0).
+Fixed PlantUML deployment and infrastructure architecture diagrams to use the correct AWS icon paths and macro names from this repository (aws-icons-for-plantuml v20.0).
 
 ## Changes Made
 
@@ -112,10 +112,78 @@ Where:
 
 Colors are predefined in each service's PUML file and cannot be customized via macro parameters.
 
+## Infrastructure Architecture Diagram Specific Fixes
+
+### 5. VPC Icon Include Path
+**Original:**
+```plantuml
+!include AWSPuml/NetworkingContentDelivery/VirtualPrivateCloud.puml
+```
+
+**Fixed:**
+```plantuml
+!include AWSPuml/NetworkingContentDelivery/VPCVirtualprivatecloudVPC.puml
+```
+
+**Reason:** The correct filename is `VPCVirtualprivatecloudVPC.puml`, not `VirtualPrivateCloud.puml`. The macro name is also `VPCVirtualprivatecloudVPC`.
+
+### 6. Network Load Balancer Include Path
+**Original:**
+```plantuml
+!include AWSPuml/NetworkingContentDelivery/ElasticLoadBalancingApplicationLoadBalancer.puml
+```
+(Used for both ALB and NLB)
+
+**Fixed:**
+```plantuml
+!include AWSPuml/NetworkingContentDelivery/ElasticLoadBalancingApplicationLoadBalancer.puml
+!include AWSPuml/NetworkingContentDelivery/ElasticLoadBalancingNetworkLoadBalancer.puml
+```
+
+**Reason:** Added the separate include for Network Load Balancer to use the correct `ElasticLoadBalancingNetworkLoadBalancer` macro.
+
+### 7. IAMRole Macro
+**Original:**
+```plantuml
+IAMRole(iam, "IAM", "Roles & Policies")
+```
+
+**Fixed:**
+```plantuml
+IdentityAccessManagementRole(iam, "IAM", "Roles & Policies")
+```
+
+**Reason:** Same as deployment diagram - the macro name is `IdentityAccessManagementRole`, not `IAMRole`.
+
+### Additional Networking Files Available
+
+- `VPCVirtualprivatecloudVPC.puml` - VPC icon ✓
+- `ElasticLoadBalancingApplicationLoadBalancer.puml` - ALB icon ✓
+- `ElasticLoadBalancingNetworkLoadBalancer.puml` - NLB icon ✓
+- `Route53.puml` - Route 53 DNS ✓
+- `VPCNATGateway.puml` - NAT Gateway
+- `VPCInternetGateway.puml` - Internet Gateway
+
+### Compute & Database Files
+
+- `EC2.puml` - EC2 instances ✓
+- `RDS.puml` - RDS databases ✓
+
+### Security Files
+
+- `SecretsManager.puml` - AWS Secrets Manager ✓
+- `KeyManagementService.puml` - AWS KMS ✓
+
+### Management & Governance Files
+
+- `CloudWatch.puml` - CloudWatch ✓
+- `CloudTrail.puml` - CloudTrail ✓
+
 ## Files Created
 
-1. `deployment-architecture-fixed.puml` - The corrected PlantUML diagram
-2. `FIXES_APPLIED.md` - This documentation file
+1. `deployment-architecture-fixed.puml` - The corrected deployment architecture diagram
+2. `infrastructure-architecture-fixed.puml` - The corrected infrastructure architecture diagram
+3. `FIXES_APPLIED.md` - This documentation file
 
 ## Testing
 

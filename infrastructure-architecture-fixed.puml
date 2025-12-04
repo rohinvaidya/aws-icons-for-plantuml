@@ -1,0 +1,261 @@
+@startuml infrastructure-architecture
+!define AWSPuml https://raw.githubusercontent.com/awslabs/aws-icons-for-plantuml/v20.0/dist
+!include AWSPuml/AWSCommon.puml
+!include AWSPuml/Containers/ElasticKubernetesService.puml
+!include AWSPuml/Compute/EC2.puml
+!include AWSPuml/Database/RDS.puml
+!include AWSPuml/Containers/ElasticContainerRegistry.puml
+!include AWSPuml/NetworkingContentDelivery/VPCVirtualprivatecloudVPC.puml
+!include AWSPuml/NetworkingContentDelivery/ElasticLoadBalancingApplicationLoadBalancer.puml
+!include AWSPuml/NetworkingContentDelivery/ElasticLoadBalancingNetworkLoadBalancer.puml
+!include AWSPuml/NetworkingContentDelivery/Route53.puml
+!include AWSPuml/SecurityIdentityCompliance/IdentityAccessManagementRole.puml
+!include AWSPuml/SecurityIdentityCompliance/SecretsManager.puml
+!include AWSPuml/SecurityIdentityCompliance/KeyManagementService.puml
+!include AWSPuml/ManagementGovernance/CloudWatch.puml
+!include AWSPuml/ManagementGovernance/CloudTrail.puml
+
+skinparam backgroundColor #FEFEFE
+skinparam rectangleBorderColor #232F3E
+
+title Campus Events Management System - Complete Infrastructure Architecture
+
+' AWS Account
+rectangle "AWS Account: 842819994894\nRegion: us-east-1" as aws_account {
+
+  ' Networking Layer
+  rectangle "Networking Layer" as network_layer #E8F5E9 {
+    VPCVirtualprivatecloudVPC(vpc, "VPC", "10.0.0.0/16")
+
+    rectangle "Public Subnets" as public {
+      card "10.0.1.0/24 (AZ-a)" as pub1
+      card "10.0.2.0/24 (AZ-b)" as pub2
+      card "NAT Gateway x2" as nat
+      card "Internet Gateway" as igw
+    }
+
+    rectangle "Private Subnets" as private {
+      card "10.0.3.0/24 (AZ-a)" as priv1
+      card "10.0.4.0/24 (AZ-b)" as priv2
+      card "EKS Worker Nodes" as nodes
+    }
+
+    rectangle "Database Subnets" as database {
+      card "10.0.5.0/24 (AZ-a)" as db1
+      card "10.0.6.0/24 (AZ-b)" as db2
+    }
+  }
+
+  ' Load Balancing Layer
+  rectangle "Load Balancing" as lb_layer #FFF3E0 {
+    Route53(route53, "Route 53", "DNS (TBD)")
+    ElasticLoadBalancingApplicationLoadBalancer(alb, "Application LB", "HTTP/HTTPS")
+    ElasticLoadBalancingNetworkLoadBalancer(nlb, "Network LB", "Grafana")
+  }
+
+  ' Compute Layer
+  rectangle "Compute Layer" as compute_layer #E3F2FD {
+    ElasticKubernetesService(eks, "EKS Cluster", "campus-events-dev v1.31")
+
+    rectangle "Node Groups" as node_groups {
+      EC2(node1, "Worker Node 1", "t3.medium 2 vCPU, 4GB")
+      EC2(node2, "Worker Node 2", "t3.medium 2 vCPU, 4GB")
+      card "Auto Scaling\n2-4 nodes" as asg
+    }
+
+    rectangle "Karpenter" as karpenter_layer {
+      card "Karpenter Controller" as karpenter
+      card "Node Provisioning" as provisioning
+    }
+  }
+
+  ' Application Layer
+  rectangle "Application Layer (K8s)" as app_layer #F3E5F5 {
+    rectangle "campus-events namespace" as ns_app {
+      card "Frontend Pods (2)" as fe
+      card "Events API Pods (2)" as api
+      card "Notification Pods (2)" as notif
+    }
+
+    rectangle "monitoring namespace" as ns_mon {
+      card "Prometheus" as prometheus
+      card "Grafana" as grafana
+      card "Alertmanager" as alertmanager
+    }
+
+    rectangle "kube-system namespace" as ns_sys {
+      card "CoreDNS" as coredns
+      card "VPC CNI" as vpc_cni
+      card "EBS CSI Driver" as ebs_csi
+      card "ALB Controller" as alb_controller
+    }
+  }
+
+  ' Data Layer
+  rectangle "Data Layer" as data_layer #FFEBEE {
+    RDS(rds, "RDS PostgreSQL", "16.4 Multi-AZ db.t3.micro 20GB gp3")
+
+    rectangle "Storage" as storage {
+      card "EBS Volumes\n(gp3)" as ebs
+      card "S3 Buckets\n(Flow Logs)" as s3
+    }
+  }
+
+  ' Container Registry
+  rectangle "Container Registry" as registry_layer #E1F5FE {
+    ElasticContainerRegistry(ecr, "Amazon ECR", "3 repositories")
+
+    card "frontend:latest" as ecr_fe
+    card "events-api:latest" as ecr_api
+    card "notifications:latest" as ecr_notif
+  }
+
+  ' Security Layer
+  rectangle "Security & IAM" as security_layer #FCE4EC {
+    IdentityAccessManagementRole(iam, "IAM", "Roles & Policies")
+    SecretsManager(secrets, "Secrets Manager", "DB Creds, API Keys")
+    KeyManagementService(kms, "KMS", "Encryption Keys")
+
+    rectangle "IAM Roles" as iam_roles {
+      card "EKS Cluster Role" as eks_role
+      card "EKS Node Role" as node_role
+      card "IRSA Roles (4)" as irsa_roles
+      card "GitHub OIDC Role" as oidc_role
+    }
+  }
+
+  ' Monitoring & Logging
+  rectangle "Observability" as observability_layer #C8E6C9 {
+    CloudWatch(cloudwatch, "CloudWatch", "Logs + Metrics")
+    CloudTrail(cloudtrail, "CloudTrail", "Audit Logs")
+
+    rectangle "Log Groups" as log_groups {
+      card "/eks/cluster" as log_cluster
+      card "/eks/containers" as log_containers
+      card "/vpc/flowlogs" as log_vpc
+    }
+  }
+}
+
+' CI/CD External
+rectangle "External CI/CD" as external #FFECB3 {
+  card "GitHub Actions" as github
+  card "Developer Laptop" as laptop
+}
+
+' Relationships
+route53 --> alb
+route53 --> nlb
+alb --> fe : Path: /
+alb --> api : Path: /api
+nlb --> grafana
+
+fe --> api : REST API
+api --> notif : HTTP POST
+api --> rds : PostgreSQL SSL
+
+eks --> node_groups
+node_groups --> ns_app
+node_groups --> ns_mon
+node_groups --> ns_sys
+
+karpenter --> node_groups : Provision nodes
+asg --> node_groups : Scale nodes
+
+ns_app --> ebs : Persistent storage
+rds --> db1
+rds --> db2
+
+github --> ecr : Push images
+ecr --> ns_app : Pull images
+
+ns_app --> secrets : IRSA access
+ns_app --> kms : Decrypt
+
+ns_app --> cloudwatch : Stream logs
+prometheus --> grafana : Metrics
+alertmanager --> grafana : Alerts
+
+vpc --> public
+vpc --> private
+vpc --> database
+
+pub1 --> nat
+pub2 --> nat
+nat --> igw
+
+private --> nat : Outbound
+nodes --> priv1
+nodes --> priv2
+
+iam_roles --> eks
+iam_roles --> ns_app
+oidc_role --> github
+
+laptop --> github : git push
+github --> eks : Deploy via kubectl
+
+' Notes
+note top of eks
+  **EKS Configuration**
+  - Version: 1.31
+  - Endpoint: Private + Public
+  - Add-ons: VPC CNI, CoreDNS,
+    kube-proxy, EBS CSI Driver
+  - Logging: API, Audit, Authenticator
+end note
+
+note top of rds
+  **RDS Configuration**
+  - Engine: PostgreSQL 16.4
+  - Instance: db.t3.micro
+  - Multi-AZ: Enabled
+  - Backup: 7 days retention
+  - Encryption: KMS enabled
+  - SSL: Enforced
+end note
+
+note right of node_groups
+  **Node Group Specs**
+  - AMI: EKS Optimized AL2
+  - Instance: t3.medium
+  - Disk: 20 GB gp3
+  - Min: 2, Max: 4
+  - Spot: No (On-Demand)
+end note
+
+note left of ecr
+  **ECR Configuration**
+  - Scan on push: Enabled
+  - Encryption: KMS
+  - Lifecycle: Keep 30 images
+  - Cross-region: No
+end note
+
+note bottom of secrets
+  **Secrets Stored**
+  - DB username/password
+  - JWT secret key
+  - AWS SES credentials
+  - API keys
+end note
+
+' Resource Costs
+note bottom of aws_account
+  **Estimated Monthly Costs**
+
+  | Resource | Cost |
+  |----------|------|
+  | EKS Control Plane | $73 |
+  | EC2 (2x t3.medium) | $60 |
+  | RDS Multi-AZ | $30 |
+  | NAT Gateways (2x) | $65 |
+  | ALB + NLB | $40 |
+  | EBS Volumes | $10 |
+  | Data Transfer | $15 |
+  | CloudWatch | $10 |
+  |----------|------|
+  | **Total** | **~$303/mo** |
+end note
+
+@enduml
