@@ -1,7 +1,7 @@
 # PlantUML Diagram Fixes Applied
 
 ## Summary
-Fixed all PlantUML architecture diagrams (deployment, infrastructure, network, security, and service interaction) to use the correct AWS icon paths and macro names from this repository (aws-icons-for-plantuml v20.0).
+Fixed all PlantUML architecture diagrams (deployment, infrastructure, network, security, service interaction, and system architecture) to use the correct AWS icon paths and macro names from this repository (aws-icons-for-plantuml v20.0).
 
 ## Changes Made
 
@@ -285,14 +285,54 @@ For sequence diagrams, AWS icons provide `*Participant` macros:
 - `SimpleEmailServiceParticipant` - For AWS SES ✓
 - Any AWS service icon has a corresponding `*Participant` macro
 
+## System Architecture Diagram Specific Fixes
+
+### 14. VPC Icon Include Path (System Diagram)
+**Original:**
+```plantuml
+!include AWSPuml/NetworkingContentDelivery/VirtualPrivateCloud.puml
+```
+
+**Fixed:**
+```plantuml
+!include AWSPuml/NetworkingContentDelivery/VPCVirtualprivatecloudVPC.puml
+```
+
+**Reason:** Consistent with all other diagrams - the correct filename is `VPCVirtualprivatecloudVPC.puml`.
+
+### 15. Users Icon
+**Original:**
+```plantuml
+actor "Internet\nUsers" as users #FF9900
+```
+
+**Fixed:**
+```plantuml
+!include AWSPuml/General/Users.puml
+Users(users, "Internet Users", "Public Access")
+```
+
+**Reason:** Added Users icon from General category for consistency with other AWS architecture elements.
+
 ## Files Created
 
-1. `deployment-architecture-fixed.puml` - The corrected deployment architecture diagram
-2. `infrastructure-architecture-fixed.puml` - The corrected infrastructure architecture diagram
-3. `network-architecture-fixed.puml` - The corrected network architecture diagram
-4. `security-architecture-fixed.puml` - The corrected security architecture diagram
-5. `service-interaction-fixed.puml` - The corrected service interaction sequence diagram
-6. `FIXES_APPLIED.md` - This documentation file
+1. `deployment-architecture-fixed.puml` - Deployment & CI/CD pipeline diagram
+2. `infrastructure-architecture-fixed.puml` - Complete infrastructure diagram
+3. `network-architecture-fixed.puml` - Network topology diagram
+4. `security-architecture-fixed.puml` - Security layers (defense in depth) diagram
+5. `service-interaction-fixed.puml` - Service interaction sequence diagram
+6. `system-architecture-fixed.puml` - High-level system architecture diagram
+7. `FIXES_APPLIED.md` - This comprehensive documentation file
+
+## Summary of All Fixes
+
+All six architecture diagrams now feature:
+- ✅ Correct v20.0 version paths
+- ✅ Proper AWS service icon includes
+- ✅ Standard 3-parameter macro calls (or 4-parameter with description)
+- ✅ AWS General icons (User, Users, GitRepository, Internet)
+- ✅ Consistent naming conventions
+- ✅ Proper participant macros for sequence diagrams
 
 ## Testing
 

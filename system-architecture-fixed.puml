@@ -1,0 +1,145 @@
+@startuml system-architecture
+!define AWSPuml https://raw.githubusercontent.com/awslabs/aws-icons-for-plantuml/v20.0/dist
+!include AWSPuml/AWSCommon.puml
+!include AWSPuml/Compute/EC2.puml
+!include AWSPuml/Containers/ElasticKubernetesService.puml
+!include AWSPuml/Database/RDS.puml
+!include AWSPuml/NetworkingContentDelivery/ElasticLoadBalancingApplicationLoadBalancer.puml
+!include AWSPuml/NetworkingContentDelivery/ElasticLoadBalancingNetworkLoadBalancer.puml
+!include AWSPuml/NetworkingContentDelivery/VPCVirtualprivatecloudVPC.puml
+!include AWSPuml/Containers/ElasticContainerRegistry.puml
+!include AWSPuml/SecurityIdentityCompliance/SecretsManager.puml
+!include AWSPuml/ManagementGovernance/CloudWatch.puml
+!include AWSPuml/General/Users.puml
+
+' Define custom colors
+skinparam backgroundColor #FEFEFE
+skinparam rectangleBorderColor #232F3E
+skinparam rectangleBackgroundColor #FFFFFF
+
+title Campus Events Management System - High-Level Architecture
+
+' Internet Users
+Users(users, "Internet Users", "Public Access")
+
+' Route 53 (Future)
+rectangle "AWS Cloud - us-east-1" as aws_cloud {
+
+  ' Load Balancers
+  ElasticLoadBalancingApplicationLoadBalancer(alb, "Application Load Balancer", "HTTP/HTTPS")
+  ElasticLoadBalancingNetworkLoadBalancer(nlb, "Network Load Balancer", "TCP/80")
+
+  ' EKS Cluster
+  rectangle "Amazon EKS Cluster\ncampus-events-dev" as eks_cluster {
+
+    ' Application Namespace
+    rectangle "Namespace: campus-events" as app_namespace #E8F5E9 {
+      rectangle "Frontend\n(React + NGINX)" as frontend {
+        card "Pod 1" as fe_pod1
+        card "Pod 2" as fe_pod2
+      }
+
+      rectangle "Events API\n(Node.js + Express)" as api {
+        card "Pod 1" as api_pod1
+        card "Pod 2" as api_pod2
+      }
+
+      rectangle "Notification Service\n(Python + FastAPI)" as notif {
+        card "Pod 1" as notif_pod1
+        card "Pod 2" as notif_pod2
+      }
+    }
+
+    ' Monitoring Namespace
+    rectangle "Namespace: monitoring" as mon_namespace #FFF3E0 {
+      rectangle "Prometheus" as prometheus
+      rectangle "Grafana" as grafana
+      rectangle "Alertmanager" as alertmanager
+    }
+
+    ' Karpenter Namespace
+    rectangle "Namespace: karpenter" as karp_namespace #E3F2FD {
+      rectangle "Karpenter\nNode Autoscaler" as karpenter
+    }
+
+    ' System Namespace
+    rectangle "Namespace: kube-system" as sys_namespace #F3E5F5 {
+      rectangle "AWS Load\nBalancer Controller" as alb_controller
+      rectangle "EBS CSI\nDriver" as ebs_csi
+      rectangle "CoreDNS" as coredns
+    }
+  }
+
+  ' Data Layer
+  RDS(rds, "Amazon RDS", "PostgreSQL 16 Multi-AZ")
+
+  ' Container Registry
+  ElasticContainerRegistry(ecr, "Amazon ECR", "Container Images")
+
+  ' Secrets
+  SecretsManager(secrets, "Secrets Manager", "DB Credentials, JWT Secret")
+
+  ' Monitoring
+  CloudWatch(cloudwatch, "CloudWatch", "Logs & Metrics")
+}
+
+' Relationships
+users --> alb : HTTPS (443)
+users --> nlb : HTTP (80)
+
+alb --> frontend : "/" path
+alb --> api : "/api" path
+
+nlb --> grafana : Port 80
+
+frontend --> api : REST API
+api --> notif : HTTP POST
+api --> rds : PostgreSQL\nSSL
+notif -.-> api : Async
+
+prometheus --> frontend : Scrape /metrics
+prometheus --> api : Scrape /metrics
+prometheus --> notif : Scrape /metrics
+
+grafana --> prometheus : PromQL Queries
+alertmanager --> grafana : Alerts
+
+api --> secrets : Fetch Credentials\n(IRSA)
+notif --> secrets : Fetch API Keys\n(IRSA)
+
+eks_cluster --> cloudwatch : Container Logs
+api --> cloudwatch : Application Logs
+
+karpenter --> eks_cluster : Manage Nodes
+
+ecr -.-> eks_cluster : Pull Images
+
+' Styling
+fe_pod1 -[hidden]- fe_pod2
+api_pod1 -[hidden]- api_pod2
+notif_pod1 -[hidden]- notif_pod2
+
+' Notes
+note right of eks_cluster
+  **Kubernetes 1.31**
+  - 2-4 t3.medium nodes
+  - Multi-AZ deployment
+  - Auto-scaling enabled
+end note
+
+note right of rds
+  **PostgreSQL 16.4**
+  - db.t3.micro
+  - 20 GB gp3 storage
+  - Automated backups
+  - KMS encryption
+end note
+
+note left of alb
+  **Traffic Routing**
+  - / → Frontend
+  - /api → Events API
+  - Health checks enabled
+end note
+
+@enduml
