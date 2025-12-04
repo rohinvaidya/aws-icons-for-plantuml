@@ -1,7 +1,7 @@
 # PlantUML Diagram Fixes Applied
 
 ## Summary
-Fixed PlantUML deployment and infrastructure architecture diagrams to use the correct AWS icon paths and macro names from this repository (aws-icons-for-plantuml v20.0).
+Fixed PlantUML deployment, infrastructure, and network architecture diagrams to use the correct AWS icon paths and macro names from this repository (aws-icons-for-plantuml v20.0).
 
 ## Changes Made
 
@@ -179,11 +179,43 @@ IdentityAccessManagementRole(iam, "IAM", "Roles & Policies")
 - `CloudWatch.puml` - CloudWatch ✓
 - `CloudTrail.puml` - CloudTrail ✓
 
+## Network Architecture Diagram Specific Fixes
+
+### 8. VPC Icon Include Path (Network Diagram)
+**Original:**
+```plantuml
+!include AWSPuml/NetworkingContentDelivery/VirtualPrivateCloud.puml
+```
+
+**Fixed:**
+```plantuml
+!include AWSPuml/NetworkingContentDelivery/VPCVirtualprivatecloudVPC.puml
+```
+
+**Reason:** Same as infrastructure diagram - the correct filename is `VPCVirtualprivatecloudVPC.puml`.
+
+### 9. Internet Icon
+**Added:**
+```plantuml
+!include AWSPuml/General/Internet.puml
+Internet(internet, "Internet", "Public Access")
+```
+
+**Reason:** Replaced generic `cloud "Internet"` with proper Internet icon from General category for visual consistency.
+
+### Additional General Icons Added
+
+All three diagrams now include:
+- `User.puml` - For developers and laptops ✓
+- `GitRepository.puml` - For GitHub and version control ✓
+- `Internet.puml` - For internet connectivity (network diagram) ✓
+
 ## Files Created
 
 1. `deployment-architecture-fixed.puml` - The corrected deployment architecture diagram
 2. `infrastructure-architecture-fixed.puml` - The corrected infrastructure architecture diagram
-3. `FIXES_APPLIED.md` - This documentation file
+3. `network-architecture-fixed.puml` - The corrected network architecture diagram
+4. `FIXES_APPLIED.md` - This documentation file
 
 ## Testing
 

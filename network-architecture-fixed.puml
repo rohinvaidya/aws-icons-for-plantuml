@@ -1,0 +1,173 @@
+@startuml network-architecture
+!define AWSPuml https://raw.githubusercontent.com/awslabs/aws-icons-for-plantuml/v20.0/dist
+!include AWSPuml/AWSCommon.puml
+!include AWSPuml/NetworkingContentDelivery/VPCVirtualprivatecloudVPC.puml
+!include AWSPuml/NetworkingContentDelivery/VPCInternetGateway.puml
+!include AWSPuml/NetworkingContentDelivery/VPCNATGateway.puml
+!include AWSPuml/NetworkingContentDelivery/ElasticLoadBalancingApplicationLoadBalancer.puml
+!include AWSPuml/Compute/EC2.puml
+!include AWSPuml/Database/RDS.puml
+!include AWSPuml/General/Internet.puml
+
+skinparam backgroundColor #FEFEFE
+skinparam rectangleBorderColor #232F3E
+
+title Campus Events Management System - Network Architecture
+
+' Internet
+Internet(internet, "Internet", "Public Access")
+
+' VPC
+rectangle "VPC: 10.0.0.0/16" as vpc {
+
+  ' Internet Gateway
+  VPCInternetGateway(igw, "Internet Gateway", "")
+
+  ' Availability Zone A
+  rectangle "Availability Zone: us-east-1a" as az_a #E8F5E9 {
+
+    ' Public Subnet AZ-A
+    rectangle "Public Subnet 1\n10.0.1.0/24" as public_1 #B3E5FC {
+      ElasticLoadBalancingApplicationLoadBalancer(alb_1, "ALB", "")
+      VPCNATGateway(nat_1, "NAT Gateway", "")
+    }
+
+    ' Private Subnet AZ-A
+    rectangle "Private Subnet 1\n10.0.3.0/24" as private_1 #C5E1A5 {
+      EC2(node_1, "EKS Node 1", "t3.medium")
+      card "Frontend Pod" as fe_pod_1
+      card "API Pod" as api_pod_1
+      card "Notif Pod" as notif_pod_1
+    }
+
+    ' Database Subnet AZ-A
+    rectangle "Database Subnet 1\n10.0.5.0/24" as db_1 #FFCCBC {
+      RDS(rds_primary, "RDS Primary", "PostgreSQL")
+    }
+  }
+
+  ' Availability Zone B
+  rectangle "Availability Zone: us-east-1b" as az_b #FFF3E0 {
+
+    ' Public Subnet AZ-B
+    rectangle "Public Subnet 2\n10.0.2.0/24" as public_2 #B3E5FC {
+      ElasticLoadBalancingApplicationLoadBalancer(alb_2, "ALB", "")
+      VPCNATGateway(nat_2, "NAT Gateway", "")
+    }
+
+    ' Private Subnet AZ-B
+    rectangle "Private Subnet 2\n10.0.4.0/24" as private_2 #C5E1A5 {
+      EC2(node_2, "EKS Node 2", "t3.medium")
+      card "Frontend Pod" as fe_pod_2
+      card "API Pod" as api_pod_2
+      card "Notif Pod" as notif_pod_2
+    }
+
+    ' Database Subnet AZ-B
+    rectangle "Database Subnet 2\n10.0.6.0/24" as db_2 #FFCCBC {
+      RDS(rds_standby, "RDS Standby", "PostgreSQL")
+    }
+  }
+}
+
+' Connections
+internet --> igw : HTTPS (443)\nHTTP (80)
+igw --> alb_1
+igw --> alb_2
+
+alb_1 --> fe_pod_1 : HTTP (30000-32767)
+alb_1 --> api_pod_1
+alb_2 --> fe_pod_2
+alb_2 --> api_pod_2
+
+fe_pod_1 --> api_pod_1 : HTTP (8080)
+fe_pod_2 --> api_pod_2
+
+api_pod_1 --> notif_pod_1 : HTTP (8082)
+api_pod_2 --> notif_pod_2
+
+api_pod_1 --> rds_primary : PostgreSQL (5432)\nSSL
+api_pod_2 --> rds_primary
+
+rds_primary <--> rds_standby : Synchronous\nReplication
+
+node_1 --> nat_1 : Outbound
+node_2 --> nat_2 : Outbound
+
+nat_1 --> igw : Internet Access
+nat_2 --> igw : Internet Access
+
+' Route Tables
+note top of public_1
+  **Public Route Table**
+  10.0.0.0/16 → local
+  0.0.0.0/0 → igw
+end note
+
+note top of private_1
+  **Private Route Table (AZ-A)**
+  10.0.0.0/16 → local
+  0.0.0.0/0 → nat-1
+end note
+
+note top of private_2
+  **Private Route Table (AZ-B)**
+  10.0.0.0/16 → local
+  0.0.0.0/0 → nat-2
+end note
+
+note top of db_1
+  **Database Route Table**
+  10.0.0.0/16 → local
+  (No internet access)
+end note
+
+' Security Groups
+note left of alb_1
+  **ALB Security Group**
+  Inbound:
+  - 80 from 0.0.0.0/0
+  - 443 from 0.0.0.0/0
+  Outbound:
+  - All to EKS nodes
+end note
+
+note right of node_1
+  **EKS Node Security Group**
+  Inbound:
+  - All from control plane
+  - 30000-32767 from ALB
+  - All from self
+  Outbound:
+  - All to 0.0.0.0/0
+end note
+
+note bottom of rds_primary
+  **RDS Security Group**
+  Inbound:
+  - 5432 from EKS nodes
+  Outbound:
+  - None
+end note
+
+' Network Policies
+note bottom of api_pod_1
+  **Kubernetes Network Policies**
+  - Default deny all ingress
+  - Frontend → API allowed
+  - API → Notifications allowed
+  - API → Database allowed
+  - Prometheus scraping allowed
+end note
+
+' Legend
+legend right
+  |= Color |= Component Type |
+  | <back:#B3E5FC>   </back> | Public Subnet (Internet-facing) |
+  | <back:#C5E1A5>   </back> | Private Subnet (EKS Nodes) |
+  | <back:#FFCCBC>   </back> | Database Subnet (RDS) |
+  | <back:#E8F5E9>   </back> | Availability Zone A |
+  | <back:#FFF3E0>   </back> | Availability Zone B |
+endlegend
+
+@enduml
