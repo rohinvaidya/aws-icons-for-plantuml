@@ -1,0 +1,163 @@
+@startuml deployment-architecture
+!define AWSPuml https://raw.githubusercontent.com/awslabs/aws-icons-for-plantuml/v20.0/dist
+!include AWSPuml/AWSCommon.puml
+!include AWSPuml/Containers/ElasticKubernetesService.puml
+!include AWSPuml/Containers/ElasticContainerRegistry.puml
+!include AWSPuml/DeveloperTools/CodeBuild.puml
+!include AWSPuml/ManagementGovernance/CloudWatch.puml
+!include AWSPuml/SecurityIdentityCompliance/IdentityAccessManagementRole.puml
+
+' Use standard AWS colors for styling
+skinparam backgroundColor #FEFEFE
+skinparam rectangleBorderColor $AWS_COLOR_SQUID
+skinparam shadowing true
+skinparam componentStyle uml2
+
+title Campus Events Management System - Deployment Architecture & CI/CD Pipeline
+
+' --- I. Development Phase ---
+cloud "I. Development Phase" #E8F5E9 {
+  actor "Developer" as developer
+
+  rectangle "Local Development" as local_dev {
+    card "VS Code / Git" as vscode
+    card "Docker Desktop" as docker_desktop
+    card "Docker Compose (3 services)" as docker_compose
+  }
+
+  developer --> vscode : Code Changes
+  vscode --> docker_compose : Test Locally
+}
+
+' --- II. Source Control ---
+frame "II. Source Control" #FFF3E0 {
+  rectangle "GitHub Repository" as github {
+    card "feature branches" as feature_branch
+    card "Pull Requests (PR)" as pr
+    card "main branch" as main_branch
+  }
+
+  developer --> feature_branch : git push
+  feature_branch --> pr : Create PR
+  pr --> main_branch : Merge (after review)
+}
+
+' --- III. CI/CD Pipeline (GitHub Actions) ---
+frame "III. CI/CD Pipeline (GitHub Actions)" #E3F2FD {
+
+  ' Stage 1: Build & Test
+  rectangle "Stage 1: Build & Security" as stage1 {
+    CodeBuild(build_runner, "CI/CD Runner", "Execute Steps")
+    card "Checkout Code" as checkout
+    card "Run Tests (npm, pytest)" as tests
+    card "Build Docker Images" as build
+    card "Security Scan (Trivy)" as trivy
+
+    main_branch --> checkout : Trigger on push
+    checkout --> tests
+    tests --> build : ✓ Tests pass
+    build --> trivy
+  }
+
+  ' Stage 2: Push to Registry
+  rectangle "Stage 2: Push to Registry" as stage2 {
+    ElasticContainerRegistry(ecr, "Amazon ECR", "Image Registry")
+    card "Tag with Git SHA" as tag_image
+    card "Push Images" as push_image
+
+    trivy --> tag_image : ✓ No Critical Vulns
+    tag_image --> push_image
+    push_image --> ecr
+  }
+
+  ' Stage 3: Deploy to EKS
+  rectangle "Stage 3: Deploy to EKS" as stage3 {
+    card "Update K8s Manifests" as update_manifest
+    card "kubectl apply" as kubectl
+    card "Verify Deployment" as verify
+    card "Rollback if Failed" as rollback
+
+    ecr --> update_manifest
+    update_manifest --> kubectl
+    kubectl --> verify
+    verify --> rollback : ✗ Health Check Fail
+  }
+
+  ' AWS Authentication
+  frame "AWS Authentication" #FCE4EC {
+    card "GitHub OIDC Provider" as oidc
+    IdentityAccessManagementRole(iam_role, "IAM Role", "Temporary Credentials")
+    card "Temporary Credentials" as temp_creds
+
+    stage2 --> oidc : Authenticate
+    oidc --> iam_role : Assume Role
+    iam_role --> temp_creds
+  }
+
+  temp_creds --> push_image : Push Access
+  temp_creds --> kubectl : EKS Deploy Access
+}
+
+' --- IV. EKS Deployment Target (AWS Service Container) ---
+ElasticKubernetesService(eks_cluster, "IV. Amazon EKS Cluster", "campus-events-dev (K8s 1.31)") {
+
+  rectangle "Deployment Strategy" as deployment_strategy {
+    card "Rolling Update" as rolling
+    card "maxUnavailable: 0" as max_unavailable
+    card "maxSurge: 1" as max_surge
+  }
+
+  rectangle "Deployed Pods" as pods {
+    card "Frontend v1.2.3" as fe_pods
+    card "Events API v1.2.3" as api_pods
+    card "Notifications v1.2.3" as notif_pods
+  }
+
+  kubectl --> rolling : Apply Manifests
+  rolling --> pods : Deploy New Version
+}
+
+' --- V. Monitoring & Observability ---
+frame "V. Monitoring & Alerts" #FFEBEE {
+  CloudWatch(cloudwatch, "CloudWatch", "Logs & Metrics")
+
+  rectangle "Prometheus Stack (In-Cluster)" as prom_stack {
+    card "Prometheus (Metrics)" as prometheus
+    card "Grafana (Dashboards)" as grafana
+    card "Alertmanager (Alerts)" as alertmanager
+  }
+
+  pods --> cloudwatch : Stream Logs
+  pods --> prometheus : Expose /metrics
+  prometheus --> grafana : Visualize
+  prometheus --> alertmanager : Trigger Alerts
+  alertmanager -.-> developer : Notify on Failure
+}
+
+' --- Notes ---
+note right of checkout
+  **Build Time: ~5 minutes**
+  *Includes Test, Build, Scan*
+end note
+
+note right of kubectl
+  **Deployment Time: ~3 minutes**
+  *Includes Image Pull & Rolling Update*
+end note
+
+note left of rollback
+  **Automatic Rollback**
+  Action: `kubectl rollout undo`
+  Triggers: Health check failure, CrashLoopBackOff.
+end note
+
+legend bottom
+  |= Environment |= Branch |= Auto-Deploy |
+  | Development | main | Yes (on push) |
+  | Staging | release/* | Manual approval |
+  | Production | tags/v* | Manual approval |
+
+  **Current Setup:** Single dev environment
+endlegend
+
+@enduml
