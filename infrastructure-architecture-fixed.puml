@@ -14,6 +14,8 @@
 !include AWSPuml/SecurityIdentityCompliance/KeyManagementService.puml
 !include AWSPuml/ManagementGovernance/CloudWatch.puml
 !include AWSPuml/ManagementGovernance/CloudTrail.puml
+!include AWSPuml/General/User.puml
+!include AWSPuml/General/GitRepository.puml
 
 skinparam backgroundColor #FEFEFE
 skinparam rectangleBorderColor #232F3E
@@ -139,8 +141,8 @@ rectangle "AWS Account: 842819994894\nRegion: us-east-1" as aws_account {
 
 ' CI/CD External
 rectangle "External CI/CD" as external #FFECB3 {
-  card "GitHub Actions" as github
-  card "Developer Laptop" as laptop
+  GitRepository(github, "GitHub Actions", "CI/CD Automation")
+  User(laptop, "Developer Laptop", "Local Development")
 }
 
 ' Relationships

@@ -6,6 +6,8 @@
 !include AWSPuml/DeveloperTools/CodeBuild.puml
 !include AWSPuml/ManagementGovernance/CloudWatch.puml
 !include AWSPuml/SecurityIdentityCompliance/IdentityAccessManagementRole.puml
+!include AWSPuml/General/User.puml
+!include AWSPuml/General/GitRepository.puml
 
 ' Use standard AWS colors for styling
 skinparam backgroundColor #FEFEFE
@@ -17,7 +19,7 @@ title Campus Events Management System - Deployment Architecture & CI/CD Pipeline
 
 ' --- I. Development Phase ---
 cloud "I. Development Phase" #E8F5E9 {
-  actor "Developer" as developer
+  User(developer, "Developer", "Local Workstation")
 
   rectangle "Local Development" as local_dev {
     card "VS Code / Git" as vscode
@@ -31,7 +33,9 @@ cloud "I. Development Phase" #E8F5E9 {
 
 ' --- II. Source Control ---
 frame "II. Source Control" #FFF3E0 {
-  rectangle "GitHub Repository" as github {
+  GitRepository(github, "GitHub Repository", "Source Control")
+
+  rectangle "Branches & PRs" as branches {
     card "feature branches" as feature_branch
     card "Pull Requests (PR)" as pr
     card "main branch" as main_branch
@@ -40,6 +44,7 @@ frame "II. Source Control" #FFF3E0 {
   developer --> feature_branch : git push
   feature_branch --> pr : Create PR
   pr --> main_branch : Merge (after review)
+  github --> branches : Contains
 }
 
 ' --- III. CI/CD Pipeline (GitHub Actions) ---
